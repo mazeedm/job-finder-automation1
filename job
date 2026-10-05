@@ -1,0 +1,138 @@
+# job_finder.py
+import os
+import json
+import requests
+import time
+import openai
+
+# 1. Ø¥Ø¹Ø¯Ø§Ø¯ Ø§Ù„Ù…ØªØºÙŠØ±Ø§Øª ÙˆØ§Ù„Ù…ÙØ§ØªÙŠØ­
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GREEN_API_INSTANCE_ID = os.getenv("GREEN_API_INSTANCE_ID")
+GREEN_API_TOKEN = os.getenv("GREEN_API_TOKEN")
+JOOBLE_API_KEY = os.getenv("JOOBLE_API_KEY")
+YOUR_PHONE_NUMBER = "962799932748"
+
+openai.api_key = OPENAI_API_KEY
+
+KEYWORDS = [
+    "Ù…Ø¯ÙŠØ± ØµÙŠØ§Ù†Ø©", "Ù…Ø¯ÙŠØ± Ø¹Ù…Ù„ÙŠØ§Øª", "Ù…Ø¯ÙŠØ± ØµÙŠØ§Ù†Ø© ÙˆØ¹Ù…Ù„ÙŠØ§Øª", "Ù…Ø¯ÙŠØ± Ø£Ø³Ø·ÙˆÙ„",
+    "Ù…Ø¯ÙŠØ± ØµÙŠØ§Ù†Ø© Ø£Ø³Ø·ÙˆÙ„", "Ù…Ø¯ÙŠØ± ÙˆØ±Ø´Ø©", "Ù…Ø¯ÙŠØ± Ø®Ø¯Ù…Ø§Øª ÙÙ†ÙŠØ©", "Ù…Ø¯ÙŠØ± Ø®Ø¯Ù…Ø©",
+    "Service Manager", "Ù…Ø¯ÙŠØ± Ù…Ø¹Ø¯Ø§Øª Ø«Ù‚ÙŠÙ„Ø©", "Ù…Ø¯ÙŠØ± Ø¥Ø¯Ø§Ø±ÙŠ", "Ù…Ø¯ÙŠØ± Ù…ØµÙ†Ø¹",
+    "Plant Manager", "Ù…Ø¯ÙŠØ± Ø¥Ù†ØªØ§Ø¬", "Ù…Ø¯ÙŠØ± Ø§Ù„ØªØ²ÙˆÙŠØ¯ ÙˆØ§Ù„Ù…Ø´ØªØ±ÙŠØ§Øª", "Ù…Ø¯ÙŠØ± Ù…Ø³ØªÙˆØ¯Ø¹Ø§Øª",
+    "Ù…Ø¯ÙŠØ± Ø³Ù„Ø§Ø³Ù„ Ø§Ù„ØªØ²ÙˆÙŠØ¯", "Ù…Ø¯ÙŠØ± Ù„ÙˆØ¬Ø³ØªÙŠØ§Øª", "Ù…Ø¯Ø±Ø³ Ù„ØºØ© ØªØ±ÙƒÙŠØ©", "Ù…ØªØ±Ø¬Ù… Ù„ØºØ© ØªØ±ÙƒÙŠØ©"
+]
+
+MAZEED_CV_PROFILE = """
+NAME: MAZEED MOHAMMED ALDAWAHREH (Ù…Ø²ÙŠØ¯ Ù…Ø­Ù…Ø¯ Ø§Ù„Ø¸ÙˆØ§Ù‡Ø±Ù‡)
+CONTACT: +962799932748 | alketteh1981@gmail.com | Amman, Jordan
+SUMMARY: Operations & Maintenance Leader with 20+ years of experience across GCC & Jordan.
+EDUCATION: Mechanical Engineering - Istanbul Technical University (1999â€“2005).
+LANGUAGES: Arabic (Native), English (Fluent), Turkish (Fluent), French (Basic).
+EXPERIENCE:
+- Operations & Maintenance Manager | Led International Contracting & Ready Mix Co. (Saudi Arabia, 2023â€“2025)
+- Director of Maintenance, Operations & Processes | Smart Way Transportation (2022â€“2023)
+- Head of Technical Planning & Operations / Head of Training & OD | Royal Jordanian Maintenance Organization (2008â€“2022)
+- Heavy Equipment Engineer | Arab Union Contract Company (2005â€“2013)
+"""
+
+def fetch_jobs_from_jooble(keyword):
+    if not JOOBLE_API_KEY:
+        return []
+    url = f"https://jooble.org/api/{JOOBLE_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    body = {"keywords": keyword, "location": ""}
+    try:
+        res = requests.post(url, json=body, headers=headers)
+        if res.status_code == 200:
+            data = res.json()
+            return data.get("jobs", [])[:2]
+    except Exception as e:
+        print(f"Error fetching jobs for {keyword}: {e}")
+    return []
+
+def analyze_job_with_ai(job_title, company, job_desc):
+    prompt = f"""
+    Ù‚Ø§Ø±Ù† Ø¨ÙŠÙ† Ø§Ù„ÙˆØ¸ÙŠÙØ© Ø§Ù„Ø³ÙŠØ±Ø© Ø§Ù„Ø°Ø§ØªÙŠØ© Ø§Ù„ØªØ§Ù„ÙŠØ© Ù„Ù„Ù…Ù‡Ù†Ø¯Ø³ Ù…Ø²ÙŠØ¯ Ù…Ø­Ù…Ø¯ Ø§Ù„Ø¸ÙˆØ§Ù‡Ø±Ù‡:
+    Ø§Ù„ÙˆØ¸ÙŠÙØ©: {job_title} ÙÙŠ Ø´Ø±ÙƒØ© {company}
+    Ø§Ù„ÙˆØµÙ: {job_desc}
+
+    Ø§Ù„Ø³ÙŠØ±Ø© Ø§Ù„Ø°Ø§ØªÙŠØ©:
+    {MAZEED_CV_PROFILE}
+
+    Ø§Ù„Ù…Ø·Ù„ÙˆØ¨ Ø±Ø¯ JSON ÙÙ‚Ø·:
+    {{
+        "match_score": 85,
+        "reason": "Ø³Ø¨Ø¨ Ø§Ù„Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ù…Ø®ØªØµØ±",
+        "cover_letter": "Ø®Ø·Ø§Ø¨ ØªØºØ·ÙŠØ© Ø§Ø­ØªØ±Ø§ÙÙŠ ÙˆÙ…Ø®ØµØµ Ù„Ù„ÙˆØ¸ÙŠÙØ©"
+    }}
+    """
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        print(f"AI Error: {e}")
+        return None
+
+def send_whatsapp(message):
+    if not GREEN_API_INSTANCE_ID or not GREEN_API_TOKEN:
+        print("Green API Credentials missing!")
+        return
+    url = f"https://api.green-api.com/waInstance{GREEN_API_INSTANCE_ID}/sendMessage/{GREEN_API_TOKEN}"
+    payload = {
+        "chatId": f"{YOUR_PHONE_NUMBER}@c.us",
+        "message": message
+    }
+    headers = {'Content-Type': 'application/json'}
+    requests.post(url, json=payload, headers=headers)
+
+def main():
+    history_file = "sent_jobs.json"
+    sent_jobs = set()
+    if os.path.exists(history_file):
+        with open(history_file, "r", encoding="utf-8") as f:
+            sent_jobs = set(json.load(f))
+
+    new_sent = False
+    for kw in KEYWORDS:
+        jobs = fetch_jobs_from_jooble(kw)
+        for job in jobs:
+            link = job.get("link")
+            if link and link not in sent_jobs:
+                analysis = analyze_job_with_ai(job.get("title"), job.get("company"), job.get("snippet"))
+                if analysis and analysis.get("match_score", 0) >= 70:
+                    msg = (
+                        f"ðŸŽ¯ *Ù…Ø·Ø§Ø¨Ù‚Ø© ÙˆØ¸ÙŠÙÙŠØ© Ø¬Ø¯ÙŠØ¯Ø© ({analysis['match_score']}%)*
+
+"
+                        f"ðŸ“Œ *Ø§Ù„Ù…Ø³Ù…Ù‰:* {job.get('title')}
+"
+                        f"ðŸ¢ *Ø§Ù„Ø´Ø±ÙƒØ©:* {job.get('company')}
+"
+                        f"ðŸ“ *Ø§Ù„Ù…ÙˆÙ‚Ø¹:* {job.get('location')}
+
+"
+                        f"ðŸ’¡ *Ø§Ù„Ø³Ø¨Ø¨:* {analysis['reason']}
+
+"
+                        f"ðŸ“ *Ø®Ø·Ø§Ø¨ Ø§Ù„ØªØºØ·ÙŠØ© Ø§Ù„Ø¬Ø§Ù‡Ø²:*
+{analysis['cover_letter']}
+
+"
+                        f"ðŸ”— *Ø±Ø§Ø¨Ø· Ø§Ù„ØªÙ‚Ø¯ÙŠÙ…:*
+{link}"
+                    )
+                    send_whatsapp(msg)
+                    sent_jobs.add(link)
+                    new_sent = True
+                    time.sleep(2)
+
+    if new_sent:
+        with open(history_file, "w", encoding="utf-8") as f:
+            json.dump(list(sent_jobs), f, ensure_ascii=False, indent=2)
+
+if __name__ == "__main__":
+    main()
