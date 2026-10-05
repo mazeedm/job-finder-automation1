@@ -1,18 +1,18 @@
 name: Job Finder Automation
 on:
   schedule:
-    - cron: '0 */3 * * *'  # تشغيل كل 3 ساعات تلقائياً
-  workflow_dispatch:      # إمكانية التشغيل اليدوي
+    - cron: '0 */3 * * *'  # تشغيل تلقائي كل 3 ساعات
+  workflow_dispatch:      # تشغيل يدوي
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -21,4 +21,11 @@ jobs:
           pip install requests
 
       - name: Run Job Finder
-        run: python auto_job_system_ready.py
+        run: |
+          if [ -f "auto_job_system_ready.py" ]; then
+            python auto_job_system_ready.py
+          elif [ -f "job_finder_ready.py" ]; then
+            python job_finder_ready.py
+          else
+            python main.py
+          fi
